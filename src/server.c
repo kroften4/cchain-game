@@ -9,63 +9,23 @@
 
 #define BACKLOG 10
 
+int start_server(char *port);
+
 int main(int argc, char **argv) {
     if (argc != 2) {
-        puts("usage: cchain_server <port>");
+        printf("usage: %s <port>", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    char *PORT = argv[1];
+    char *port = argv[1];
 
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-
-    struct addrinfo *server_ai;
-    int ai_status = getaddrinfo(NULL, PORT, &hints, &server_ai);
-    if (ai_status != 0) {
-        freeaddrinfo(server_ai);
-        fprintf(stderr, "server: addrinfo: %s\n", gai_strerror(ai_status));
-        exit(EXIT_FAILURE);
-    }
-
-    int sockfd;
-    for ( ; server_ai != NULL; server_ai = server_ai->ai_next) {
-        sockfd = socket(server_ai->ai_family, server_ai->ai_socktype, 0);
-        if (sockfd == -1) {
-            perror("server: socket");
-            continue;
-        }
-
-        if (bind(sockfd, server_ai->ai_addr, server_ai->ai_addrlen) == -1) {
-            perror("server: bind");
-            close(sockfd);
-            continue;
-        }
-
-        break;
-    }
-
-    if (server_ai == NULL) {
-        fprintf(stderr, "server: Failed to bind\n");
-        exit(EXIT_FAILURE);
-    }
-
-    freeaddrinfo(server_ai);
-
-    if (listen(sockfd, BACKLOG) == -1) {
-        perror("server: listen");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
-    printf("server: listening on %s\n", PORT);
+    int servfd = start_server(port);
+    printf("Listening on %s\n", port);
 
     while (1) {
         struct sockaddr_storage client_addr;
         socklen_t client_addrlen = sizeof(client_addr);
-        int connfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addrlen);
+        int connfd = accept(servfd, (struct sockaddr *)&client_addr, &client_addrlen);
         if (connfd == -1) {
             perror("accept");
             continue;
@@ -97,7 +57,61 @@ int main(int argc, char **argv) {
         }
     }
 
-    close(sockfd);
+    close(servfd);
     return 0;
 }
 
+int start_server (char *port) {
+    /*
+    * Start a TCP server
+    *
+    * Returns server socket fd on success, and -1 on error
+    *
+    * Also spams errors if any occur into console
+    */
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    struct addrinfo *server_ai;
+    int ai_status = getaddrinfo(NULL, port, &hints, &server_ai);
+    if (ai_status != 0) {
+        freeaddrinfo(server_ai);
+        fprintf(stderr, "server: addrinfo: %s\n", gai_strerror(ai_status));
+        return -1;
+    }
+
+    int sockfd;
+    for ( ; server_ai != NULL; server_ai = server_ai->ai_next) {
+        sockfd = socket(server_ai->ai_family, server_ai->ai_socktype, 0);
+        if (sockfd == -1) {
+            perror("server: socket");
+            continue;
+        }
+
+        if (bind(sockfd, server_ai->ai_addr, server_ai->ai_addrlen) == -1) {
+            perror("server: bind");
+            close(sockfd);
+            continue;
+        }
+
+        break;
+    }
+
+    if (server_ai == NULL) {
+        fprintf(stderr, "server: Failed to bind\n");
+        return -1;
+    }
+
+    freeaddrinfo(server_ai);
+
+    if (listen(sockfd, BACKLOG) == -1) {
+        perror("server: listen");
+        close(sockfd);
+        return -1;
+    }
+
+    return sockfd;
+}
