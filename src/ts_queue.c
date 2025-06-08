@@ -34,7 +34,7 @@ void ts_queue_destroy(struct ts_queue *q) {
 
 void ts_queue_push(struct ts_queue *q, int item) {
     pthread_mutex_lock(&q->lock);
-    for (int i = 0; i <= q->back; i++) {
+    for (int i = q->back; i >= 0; i--) {
         q->items[i + 1] = q->items[i];
     }
     q->items[0] = item;
