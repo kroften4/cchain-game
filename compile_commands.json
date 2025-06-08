@@ -1,0 +1,54 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-o",
+      "./bin/server",
+      "./src/server.c"
+    ],
+    "directory": "/home/krft/Github/cchain-game",
+    "file": "/home/krft/Github/cchain-game/src/server.c",
+    "output": "/home/krft/Github/cchain-game/bin/server"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-o",
+      "./build/ts_queue.o",
+      "./src/ts_queue.c"
+    ],
+    "directory": "/home/krft/Github/cchain-game",
+    "file": "/home/krft/Github/cchain-game/src/ts_queue.c",
+    "output": "/home/krft/Github/cchain-game/build/ts_queue.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-I.",
+      "./build/ts_queue.o",
+      "-o",
+      "./bin/test_tsqueue",
+      "./src/ts_queue.h"
+    ],
+    "directory": "/home/krft/Github/cchain-game",
+    "file": "/home/krft/Github/cchain-game/src/ts_queue.h",
+    "output": "/home/krft/Github/cchain-game/bin/test_tsqueue"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-I.",
+      "./build/ts_queue.o",
+      "-o",
+      "./bin/test_tsqueue",
+      "./test/ts_queue.c"
+    ],
+    "directory": "/home/krft/Github/cchain-game",
+    "file": "/home/krft/Github/cchain-game/test/ts_queue.c",
+    "output": "/home/krft/Github/cchain-game/bin/test_tsqueue"
+  }
+]

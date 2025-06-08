@@ -6,10 +6,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <pthread.h>
 
 #define BACKLOG 10
 
 int start_server(char *port);
+
+void handle_client(int connfd);
+
+void handle_connection();
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -33,28 +38,6 @@ int main(int argc, char **argv) {
 
         puts("New connection");
 
-        char *test_buf;
-
-        pid_t pid = fork();
-        switch(pid) {
-        case -1:
-            perror("fork");
-            continue;
-        case 0:
-            test_buf = "hey ya";
-            ssize_t sent = send(connfd, test_buf, strlen(test_buf), 0);
-            if (sent == -1) {
-                perror("send");
-                exit(EXIT_FAILURE);
-            } else {
-                printf("sent %zu/%zu bytes\n", sent, strlen(test_buf));
-                exit(EXIT_SUCCESS);
-            }
-        default:
-            wait(&pid);
-            close(connfd);
-            puts("Closed connection");
-        }
     }
 
     close(servfd);
@@ -115,3 +98,19 @@ int start_server (char *port) {
 
     return sockfd;
 }
+
+void handle_client(int connfd) {
+    /*
+    * Handle client communication during the game
+    */
+    char test_buf[] = "hey ya";
+    ssize_t sent = send(connfd, test_buf, sizeof(test_buf), 0);
+    if (sent == -1) {
+        perror("send");
+        exit(EXIT_FAILURE);
+    } else {
+        printf("sent %zu/%zu bytes\n", sent, sizeof(test_buf));
+        exit(EXIT_SUCCESS);
+    }
+}
+
