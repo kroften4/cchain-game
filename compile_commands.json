@@ -28,20 +28,7 @@
       "/usr/bin/gcc",
       "-c",
       "-I.",
-      "./build/ts_queue.o",
-      "-o",
-      "./bin/test_tsqueue",
-      "./src/ts_queue.h"
-    ],
-    "directory": "/home/krft/Github/cchain-game",
-    "file": "/home/krft/Github/cchain-game/src/ts_queue.h",
-    "output": "/home/krft/Github/cchain-game/bin/test_tsqueue"
-  },
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-c",
-      "-I.",
+      "-g",
       "./build/ts_queue.o",
       "-o",
       "./bin/test_tsqueue",
