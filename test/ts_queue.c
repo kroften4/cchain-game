@@ -1,29 +1,36 @@
 #include "src/ts_queue.h"
 #include <assert.h>
+#include <stdlib.h>
 
 int main() {
-    TS_QUEUE(q, 10);
-    assert(q.back == -1 && "Must be empty on creation");
+    struct ts_queue *q = ts_queue_new();
+    int a = 1, b = 2, c = 3;
+    ts_queue_enqueue(q, &a);
+    ts_queue_enqueue(q, &b);
+    ts_queue_enqueue(q, &c);
 
-    ts_queue_push(&q, 3);
-    ts_queue_push(&q, 2);
-    ts_queue_push(&q, 1);
+    assert(*(int *)(q->head->data) == 1 && "Incorrect head data after enqueue");
+    assert(*(int *)(q->head->next->data) == 2 && "Incorrect contents after enqueue");
+    assert(*(int *)(q->tail->data) == 3 && "Incorrect tail data after enqueue");
 
-    assert(q.back == 2 && "Incorrect size (q.back) after pushing");
-    assert(q.items[0] == 1 && q.items[1] == 2 && q.items[2] == 3 &&
-     "Incorrect contents after pushing");
+    ts_queue_dequeue(q);
 
-    ts_queue_remove(&q, 1);
+    assert(*(int *)(q->head->data) == 2 && "Incorrect head data after dequeue");
+    assert(*(int *)(q->tail->data) == 3 && "Incorrect tail data after dequeue");
 
-    assert(q.back == 1 && q.items[0] == 1 && q.items[1] == 3 &&
-     "Incorrect size or contents after removing");
+    ts_queue_dequeue(q);
 
-    ts_queue_pop(&q);
-    ts_queue_pop(&q);
+    assert(*(int *)(q->head->data) == 3 && 
+           "Incorrect head data after dequeue (1 item)");
+    assert(*(int *)(q->tail->data) == 3 && 
+           "Incorrect tail data after dequeue (1 item)");
 
-    assert(q.back == -1 && "Incorrect size after popping");
+    ts_queue_dequeue(q);
 
-    ts_queue_destroy(&q);
+    assert(__ts_queue_is_empty(q) && "Not empty after dequeue");
+
+    ts_queue_destroy(q);
+    free(q);
 
     return 0;
 }

@@ -10,6 +10,14 @@ struct ts_queue_node *ts_queue_node_new() {
     return node;
 };
 
+struct ts_queue *ts_queue_new() {
+    struct ts_queue *q = malloc(sizeof(struct ts_queue));
+    q->head = NULL;
+    q->tail = NULL;
+    pthread_mutex_init(&q->lock, NULL);
+    return q;
+}
+
 void ts_queue_destroy(struct ts_queue *q) {
     // TODO: free all nodes
     pthread_mutex_destroy(&q->lock);
@@ -21,7 +29,6 @@ bool __ts_queue_is_empty(struct ts_queue *q) {
 
 void __ts_queue_add(struct ts_queue *q, struct ts_queue_node *prev,
                     struct ts_queue_node *next, struct ts_queue_node *node) {
-    pthread_mutex_lock(&q->lock);
     if (__ts_queue_is_empty(q)) {
         q->head = node;
         q->tail = node;
@@ -39,12 +46,10 @@ void __ts_queue_add(struct ts_queue *q, struct ts_queue_node *prev,
         node->prev = prev;
         node->next = next;
     }
-    pthread_mutex_unlock(&q->lock);
 }
 
 void __ts_queue_remove(struct ts_queue *q, struct ts_queue_node *prev,
                     struct ts_queue_node *next) {
-    pthread_mutex_lock(&q->lock);
     if (__ts_queue_is_empty(q))
         return;
 
@@ -68,7 +73,6 @@ void __ts_queue_remove(struct ts_queue *q, struct ts_queue_node *prev,
     }
 
     free(node);
-    pthread_mutex_unlock(&q->lock);
 }
 
 void ts_queue_enqueue(struct ts_queue *q, void *item) {
