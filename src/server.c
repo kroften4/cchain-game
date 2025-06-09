@@ -1,4 +1,5 @@
 #include <netdb.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,15 +7,22 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <pthread.h>
+
+#include "ts_queue.h"
 
 #define BACKLOG 10
+#define PLAYER_Q_MAXSIZE 50
+
+struct client_data {
+    int connfd;
+    struct ts_queue *player_q;
+};
 
 int start_server(char *port);
 
-void handle_client(int connfd);
+int handle_connection(struct client_data *cl_data);
 
-void handle_connection();
+void matchmake(struct ts_queue *q);
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -27,6 +35,14 @@ int main(int argc, char **argv) {
     int servfd = start_server(port);
     printf("Listening on %s\n", port);
 
+    struct ts_queue *player_q = malloc(sizeof(struct ts_queue));
+    player_q->capacity = PLAYER_Q_MAXSIZE;
+    ts_queue_init(player_q);
+
+    // player queue consumer
+    pthread_t matcher;
+    pthread_create(&matcher, NULL, (void *)matchmake, player_q);
+
     while (1) {
         struct sockaddr_storage client_addr;
         socklen_t client_addrlen = sizeof(client_addr);
@@ -38,13 +54,19 @@ int main(int argc, char **argv) {
 
         puts("New connection");
 
+        struct client_data cl_data = {.connfd = connfd, .player_q = player_q};
+
+        // player queue producer
+        pthread_t client;
+        pthread_create(&client, NULL, (void *)&handle_connection, &cl_data);
+        pthread_detach(client);
     }
 
     close(servfd);
     return 0;
 }
 
-int start_server (char *port) {
+int start_server(char *port) {
     /*
     * Start a TCP server
     *
@@ -99,18 +121,24 @@ int start_server (char *port) {
     return sockfd;
 }
 
-void handle_client(int connfd) {
+int handle_connection(struct client_data *cl_data) {
     /*
     * Handle client communication during the game
     */
     char test_buf[] = "hey ya";
-    ssize_t sent = send(connfd, test_buf, sizeof(test_buf), 0);
+    ssize_t sent = send(cl_data->connfd, test_buf, sizeof(test_buf), 0);
     if (sent == -1) {
         perror("send");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // TODO: change to pthread_exit
     } else {
         printf("sent %zu/%zu bytes\n", sent, sizeof(test_buf));
-        exit(EXIT_SUCCESS);
+        ts_queue_push(cl_data->player_q, cl_data->connfd);
+        return EXIT_SUCCESS;
     }
 }
 
+void matchmake(struct ts_queue *q) {
+    while (1) {
+        printf("%d\n", q->items[0]);
+    }
+}
