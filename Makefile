@@ -1,10 +1,10 @@
 all: server test_tsqueue
 
 server: bin_path queue
-	gcc ./build/ts_queue.o ./src/server.c -o ./bin/server
+	gcc -I. -ggdb ./build/ts_queue.o ./src/server.c -o ./bin/server
 
 test_tsqueue: bin_path queue
-	gcc -I. -g ./build/ts_queue.o ./test/ts_queue.c -o ./bin/test_tsqueue
+	gcc -I. -ggdb ./build/ts_queue.o ./test/ts_queue.c -o ./bin/test_tsqueue
 
 queue: build_path
 	gcc -c ./src/ts_queue.c  -o ./build/ts_queue.o

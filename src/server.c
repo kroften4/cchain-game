@@ -11,17 +11,25 @@
 #include "ts_queue.h"
 
 #define BACKLOG 10
-#define PLAYER_Q_MAXSIZE 50
 
 struct client_data {
     int connfd;
-    struct ts_queue *player_q;
 };
 
+#define ROOM_SIZE 2
+struct match_data {
+    struct client_data *(players_fd[ROOM_SIZE]);
+};
+
+struct ts_queue *player_q;
+pthread_cond_t q_has_match = PTHREAD_COND_INITIALIZER;
+
+struct ts_queue *matches;
+
+void print_queue(struct ts_queue *q);
+
 int start_server(char *port);
-
 int handle_connection(struct client_data *cl_data);
-
 void matchmake(struct ts_queue *q);
 
 int main(int argc, char **argv) {
@@ -35,9 +43,10 @@ int main(int argc, char **argv) {
     int servfd = start_server(port);
     printf("Listening on %s\n", port);
 
-    struct ts_queue *player_q = malloc(sizeof(struct ts_queue));
-    player_q->capacity = PLAYER_Q_MAXSIZE;
-    ts_queue_init(player_q);
+    player_q = ts_queue_new();
+
+    matches = ts_queue_new();
+
 
     // player queue consumer
     pthread_t matcher;
@@ -54,11 +63,12 @@ int main(int argc, char **argv) {
 
         puts("New connection");
 
-        struct client_data cl_data = {.connfd = connfd, .player_q = player_q};
+        struct client_data *cl_data = malloc(sizeof(struct client_data));
+        cl_data->connfd = connfd;
 
         // player queue producer
         pthread_t client;
-        pthread_create(&client, NULL, (void *)&handle_connection, &cl_data);
+        pthread_create(&client, NULL, (void *)&handle_connection, cl_data);
         pthread_detach(client);
     }
 
@@ -132,13 +142,50 @@ int handle_connection(struct client_data *cl_data) {
         return EXIT_FAILURE; // TODO: change to pthread_exit
     } else {
         printf("sent %zu/%zu bytes\n", sent, sizeof(test_buf));
-        ts_queue_push(cl_data->player_q, cl_data->connfd);
+        ts_queue_enqueue(player_q, cl_data);
+        puts("Put in da q");
+        print_queue(player_q);
+        pthread_cond_signal(&q_has_match);
         return EXIT_SUCCESS;
     }
 }
 
+void print_queue(struct ts_queue *q) {
+    printf("[ ");
+    for (struct ts_queue_node *node = q->head; node != NULL;
+         node = node->next) {
+        struct client_data *data = node->data;
+        printf("%d ", data->connfd);
+    }
+    printf("]\n");
+}
+
 void matchmake(struct ts_queue *q) {
     while (1) {
-        printf("%d\n", q->items[0]);
+        pthread_mutex_lock(&q->mutex);
+        while (q->size < ROOM_SIZE) {
+            pthread_cond_wait(&q_has_match, &q->mutex);
+        }
+
+        while (q->size >= ROOM_SIZE) {
+            // if enough players in q to create a room, do so
+
+            // create room
+            struct match_data *match_data = malloc(sizeof(struct match_data));
+
+            // fill it up
+            for (int i = 0; i < ROOM_SIZE; i++) {
+                match_data->players_fd[i] = q->head->data;
+                __ts_queue_dequeue_nolock(q);
+            }
+            puts("Created a room:");
+            print_queue(q);
+
+            // add to room list
+            __ts_queue_enqueue_nolock(matches, match_data);
+        }
+
+        pthread_mutex_unlock(&q->mutex);
     }
 }
+
