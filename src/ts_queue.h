@@ -7,52 +7,41 @@
 
 #include <pthread.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #define TS_QUEUE(name, size) struct ts_queue name = {.capacity = size};\
                              ts_queue_init(&name)
 
-struct ts_queue {
-    int *items;
-    int front;
-    int back;
-    int capacity;
-    pthread_mutex_t lock;
+struct ts_queue_node {
+    void *data;
+    struct ts_queue_node *prev;
+    struct ts_queue_node *next;
 };
 
-/*
- * Only for internal use
- */
-void __ts_queue_increment_size(struct ts_queue *q);
+struct ts_queue_node *ts_queue_node_new();
 
-/*
- * Only for internal use
- */
-void __ts_queue_decrement_size(struct ts_queue *q);
-
-/*
- * Initialize ts_queue. Requires `capacity` field to be filled
- */
-void ts_queue_init(struct ts_queue *q);
+struct ts_queue {
+    struct ts_queue_node *head;
+    struct ts_queue_node *tail;
+    pthread_mutex_t lock;
+};
 
 /*
  * Cleanup after done using ts_queue
  */
 void ts_queue_destroy(struct ts_queue *q);
 
-/*
- * Push `item` to the front
- */
-void ts_queue_push(struct ts_queue *q, int item);
+void __ts_queue_add(struct ts_queue *q, struct ts_queue_node *prev,
+                    struct ts_queue_node *next, struct ts_queue_node *node);
 
-/*
- * Pop an item from the back
- */
-void ts_queue_pop(struct ts_queue *q);
+void __ts_queue_remove(struct ts_queue *q, struct ts_queue_node *prev,
+                    struct ts_queue_node *next);
 
-/*
- * Remove `index`-th item
- */
-void ts_queue_remove(struct ts_queue *q, int index);
+bool __ts_queue_is_empty(struct ts_queue *q);
+
+void ts_queue_enqueue(struct ts_queue *q, void *item);
+
+void ts_queue_dequeue(struct ts_queue *q);
 
 #endif

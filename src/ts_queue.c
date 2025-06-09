@@ -2,58 +2,88 @@
 #include <stdlib.h>
 #include "ts_queue.h"
 
-void __ts_queue_increment_size(struct ts_queue *q) {
-    if (q->back == -1) {
-        q->front = 0;
-        q->back = 0;
-    } else {
-        q->back++;
-    }
-}
-
-void __ts_queue_decrement_size(struct ts_queue *q) {
-    if (q->back == 0) {
-        q->front = -1;
-        q->back = -1;
-    } else {
-        q->back--;
-    }
-}
-
-void ts_queue_init(struct ts_queue *q) {
-    q->items = malloc(sizeof(int) * q->capacity);
-    q->front = -1;
-    q->back = -1;
-    pthread_mutex_init(&q->lock, NULL);
-}
+struct ts_queue_node *ts_queue_node_new() {
+    struct ts_queue_node *node = malloc(sizeof(struct ts_queue_node));
+    node->data = NULL;
+    node->prev = NULL;
+    node->next = NULL;
+    return node;
+};
 
 void ts_queue_destroy(struct ts_queue *q) {
-    free(q->items);
+    // TODO: free all nodes
     pthread_mutex_destroy(&q->lock);
 }
 
-void ts_queue_push(struct ts_queue *q, int item) {
+bool __ts_queue_is_empty(struct ts_queue *q) {
+    return q->head == NULL;
+}
+
+void __ts_queue_add(struct ts_queue *q, struct ts_queue_node *prev,
+                    struct ts_queue_node *next, struct ts_queue_node *node) {
     pthread_mutex_lock(&q->lock);
-    for (int i = q->back; i >= 0; i--) {
-        q->items[i + 1] = q->items[i];
+    if (__ts_queue_is_empty(q)) {
+        q->head = node;
+        q->tail = node;
+    } else if (prev == NULL) {
+        q->head = node;
+        next->prev = node;
+        node->next = next;
+    } else if (next == NULL) {
+        q->tail = node;
+        prev->next = node;
+        node->prev = prev;
+    } else {
+        prev->next = node;
+        next->prev = node;
+        node->prev = prev;
+        node->next = next;
     }
-    q->items[0] = item;
-    __ts_queue_increment_size(q);
     pthread_mutex_unlock(&q->lock);
 }
 
-void ts_queue_pop(struct ts_queue *q) {
+void __ts_queue_remove(struct ts_queue *q, struct ts_queue_node *prev,
+                    struct ts_queue_node *next) {
     pthread_mutex_lock(&q->lock);
-    __ts_queue_decrement_size(q);
+    if (__ts_queue_is_empty(q))
+        return;
+
+    if (prev == NULL)
+        q->head = next;
+    if (next == NULL)
+        q->tail = prev;
+
+    struct ts_queue_node *node;
+    if (prev == NULL && next == NULL) {
+        node = q->tail;
+    }
+
+    if (prev != NULL) {
+        node = prev->next;
+        prev->next = next;
+    }
+    if (next != NULL) {
+        node = next->prev;
+        next->prev = prev;
+    }
+
+    free(node);
     pthread_mutex_unlock(&q->lock);
 }
 
-void ts_queue_remove(struct ts_queue *q, int index) {
+void ts_queue_enqueue(struct ts_queue *q, void *item) {
     pthread_mutex_lock(&q->lock);
-    for (int i = index; i < q->back; i++) {
-        q->items[i] = q->items[i + 1];
-    }
-    __ts_queue_decrement_size(q);
+    struct ts_queue_node *new_node = ts_queue_node_new();
+    new_node->data = item;
+    __ts_queue_add(q, q->tail, NULL, new_node);
+    pthread_mutex_unlock(&q->lock);
+}
+
+void ts_queue_dequeue(struct ts_queue *q) {
+    pthread_mutex_lock(&q->lock);
+    if (__ts_queue_is_empty(q))
+        return;
+    __ts_queue_remove(q, NULL, q->head->next);
     pthread_mutex_unlock(&q->lock);
 }
 
