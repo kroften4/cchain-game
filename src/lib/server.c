@@ -61,9 +61,11 @@ struct conn_data {
     void (*on_connection_fn)(int);
 };
 
-void handle_connection(struct conn_data *conn_data) {
-    conn_data->on_connection_fn(conn_data->connfd);
-    free(conn_data);
+void *handle_connection(void *conn_data) {
+    struct conn_data *c_data = (struct conn_data *) conn_data;
+    c_data->on_connection_fn(c_data->connfd);
+    free(c_data);
+    return NULL;
 }
 
 int server(char *port, void on_connection(int connfd)) {
@@ -92,7 +94,7 @@ int server(char *port, void on_connection(int connfd)) {
         conn_data->connfd = connfd;
         conn_data->on_connection_fn = on_connection;
         pthread_t conn_thread;
-        pthread_create(&conn_thread, NULL, (void *)&handle_connection, conn_data);
+        pthread_create(&conn_thread, NULL, (void *(*)(void *))&handle_connection, conn_data);
         pthread_detach(conn_thread);
     }
 }

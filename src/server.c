@@ -2,7 +2,6 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -30,9 +29,9 @@ struct ts_queue *matches;
 void print_queue(struct ts_queue *q);
 
 void enqueue_new_player(int connfd);
-void matchmake(struct ts_queue *q);
+void *matchmake(void *q_p);
 
-void play_cchain(struct match_data *room_data);
+void *play_cchain(void *room_data_p);
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -48,7 +47,7 @@ int main(int argc, char **argv) {
 
     // player queue consumer
     pthread_t matcher;
-    pthread_create(&matcher, NULL, (void *)matchmake, player_q);
+    pthread_create(&matcher, NULL, matchmake, player_q);
 
     server(port, enqueue_new_player);
     return 0;
@@ -59,12 +58,12 @@ void enqueue_new_player(int connfd) {
     * Handle client communication during the game
     */
     char queue_msg[] = "QUEUE:1";
-    ssize_t sent = send(connfd, queue_msg, strlen(queue_msg), 0);
+    ssize_t sent = send(connfd, queue_msg, sizeof(queue_msg), 0);
     if (sent == -1) {
         perror("enqueue_new_player: send");
         // pthread_exit
     } else {
-        printf("sent %zu/%zu bytes\n", sent, sizeof(queue_msg));
+        printf("enqueue_new_player: sent %zu/%zu bytes\n", sent, sizeof(queue_msg));
         struct client_data *cl_data = malloc(sizeof(struct client_data));
         if (cl_data == NULL) {
             perror("enqueue_new_player: malloc");
@@ -90,7 +89,8 @@ void print_queue(struct ts_queue *q) {
     printf("]\n");
 }
 
-void matchmake(struct ts_queue *q) {
+void *matchmake(void *q_p) {
+    struct ts_queue *q = (struct ts_queue *) q_p;
     while (1) {
         pthread_mutex_lock(&q->mutex);
         while (q->size < ROOM_SIZE) {
@@ -108,14 +108,14 @@ void matchmake(struct ts_queue *q) {
                 match_data->players_fd[i] = q->head->data;
                 __ts_queue_dequeue_nolock(q);
             }
-            puts("Created a room:");
+            printf("matchmake: Created a room ");
             print_queue(q);
 
             // add to room list
             __ts_queue_enqueue_nolock(matches, match_data);
 
             pthread_t game_thread;
-            pthread_create(&game_thread, NULL, (void *(*)(void *))play_cchain,
+            pthread_create(&game_thread, NULL, play_cchain,
                            match_data);
             pthread_detach(game_thread);
         }
@@ -126,10 +126,12 @@ void matchmake(struct ts_queue *q) {
 
 /*
  * Play the city chain game. `room_data` contains 2 `connfd`s for the 2 players
+ * TODO: fix SIGPIPE (sending to closed connection)
  * TODO: make room size variable
  */
-void play_cchain(struct match_data *room_data) {
-    puts("Starting game");
+void *play_cchain(void *room_data_p) {
+    struct match_data *room_data = (struct match_data *) room_data_p;
+    puts("play_cchain: Starting game");
     struct server_msg {
         char *opponent_word;
     };
@@ -139,12 +141,12 @@ void play_cchain(struct match_data *room_data) {
     char start_msg_1[MAX_MSG_SIZE] = "";
     cchain_msg(start_msg_1, CCHAIN_START, "1");
     send(connfd_1, start_msg_1, sizeof(start_msg_1), 0);
-    printf("Sent %s\n", start_msg_1);
+    printf("play_cchain: Sent %s\n", start_msg_1);
 
     char start_msg_2[MAX_MSG_SIZE] = "";
     cchain_msg(start_msg_2, CCHAIN_START, "0");
     send(connfd_2, start_msg_2, sizeof(start_msg_2), 0);
-    printf("Sent %s\n", start_msg_1);
+    printf("play_cchain: Sent %s\n", start_msg_1);
 
     int player_fds[2] = {connfd_1, connfd_2};
     srand(time(NULL));
@@ -154,13 +156,13 @@ void play_cchain(struct match_data *room_data) {
     cchain_msg(first_turn_msg, CCHAIN_TURN, "NONE");
     send(player_fds[current_player], first_turn_msg,
          sizeof(first_turn_msg), 0);
-    printf("Sent %s\n", first_turn_msg);
+    printf("play_cchain: Sent %s\n", first_turn_msg);
 
     while (1) {
         char player_msg[MAX_MSG_SIZE];
         recv(player_fds[current_player], player_msg, MAX_MSG_SIZE, 0);
         player_msg[MAX_MSG_SIZE - 1] = '\0';
-        printf("Player %d says %s\n", current_player, player_msg);
+        printf("play_cchain: Player %d says %s\n", current_player, player_msg);
 
         char data[MAX_DATA_SIZE] = "";
         enum cchain_command player_cmd = cchain_deserialize_msg(data, player_msg);
@@ -177,16 +179,16 @@ void play_cchain(struct match_data *room_data) {
         case CCHAIN_GIVEUP:
         {
             char buf[MAX_COMMAND_SIZE] = "";
-            printf("Unexpected command: %s", cchain_enum_to_str(buf, player_cmd));
+            printf("play_cchain: Unexpected command: %s", cchain_enum_to_str(buf, player_cmd));
             break;
         }
         default:
-            printf("No such command: %d\n", player_cmd);
+            printf("play_cchain: No such command: %d\n", player_cmd);
             break;
         }
         send(player_fds[!current_player], server_msg,
              sizeof(server_msg), 0);
-        printf("Sent %s", server_msg);
+        printf("play_cchain: Sent %s", server_msg);
 
         current_player = !current_player;
     }

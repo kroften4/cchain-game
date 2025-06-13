@@ -65,7 +65,8 @@ int main(int argc, char *argv[]) {
 }
 
 int connect_to_server(char *name, char *port) {
-    int errnosave = 0, status, serverfd;
+    int status;
+    int serverfd;
     struct addrinfo hints;
     struct addrinfo *res;
 
@@ -88,13 +89,11 @@ int connect_to_server(char *name, char *port) {
 
     // make a socket and connect
     if ((serverfd = socket(server_ai.ai_family, server_ai.ai_socktype, server_ai.ai_protocol)) == -1) {
-        errnosave = errno;
         perror("failed to create a socket");
         return -1;
     }
 
     if (connect(serverfd, server_ai.ai_addr, server_ai.ai_addrlen) == -1) {
-        errnosave = errno;
         perror("failed to connect");
         return -1;
     }

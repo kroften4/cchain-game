@@ -1,5 +1,12 @@
 CC = gcc
-CFLAGS = -Iinclude -ggdb
+CFLAGS = -Iinclude
+CFLAGS += -Wall -Wextra -Wpedantic
+
+ifdef DEBUG
+	CFLAGS += -ggdb -O0
+else
+	CFLAGS += -O1
+endif
 
 LIB_SRC = $(wildcard src/lib/*.c)
 LIB_OBJ = $(patsubst src/lib/%.c, build/lib/%.o, $(LIB_SRC))

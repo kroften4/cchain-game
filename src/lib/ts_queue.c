@@ -8,15 +8,15 @@ struct ts_queue_node *ts_queue_node_new() {
     node->prev = NULL;
     node->next = NULL;
     return node;
-};
+}
 
 void __ts_queue_data_destructor_noop(void *dummy) {
+    (void)dummy;
     return;
 }
 
 void __ts_queue_node_destructor(struct ts_queue *q, 
                                 struct ts_queue_node *node) {
-    #include <stdio.h>
     q->data_destructor(node->data);
     free(node);
 }
@@ -73,7 +73,7 @@ void __ts_queue_remove_nolock(struct ts_queue *q, struct ts_queue_node *prev,
     if (__ts_queue_is_empty(q))
         return;
 
-    struct ts_queue_node *node;
+    struct ts_queue_node *node = NULL;
     if (prev == NULL && next == NULL) {
         node = q->tail;
     }
