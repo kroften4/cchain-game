@@ -1,4 +1,4 @@
-#include "src/ts_queue.h"
+#include "ts_queue.h"
 #include <assert.h>
 #include <stdlib.h>
 

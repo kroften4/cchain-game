@@ -11,7 +11,8 @@
 
 #include "ts_queue.h"
 #include "cchain_protocol.h"
-#include "server.h"
+
+#define BACKLOG 10
 
 struct client_data {
     int connfd;
@@ -29,7 +30,8 @@ struct ts_queue *matches;
 
 void print_queue(struct ts_queue *q);
 
-void enqueue_new_player(int connfd);
+int start_server(char *port);
+int handle_connection(struct client_data *cl_data);
 void matchmake(struct ts_queue *q);
 
 void play_cchain(struct match_data *room_data);
@@ -42,41 +44,113 @@ int main(int argc, char **argv) {
 
     char *port = argv[1];
 
+    int servfd = start_server(port);
+    printf("Listening on %s\n", port);
 
     player_q = ts_queue_new();
+
     matches = ts_queue_new();
+
 
     // player queue consumer
     pthread_t matcher;
     pthread_create(&matcher, NULL, (void *)matchmake, player_q);
 
-    server(port, enqueue_new_player);
+    while (1) {
+        struct sockaddr_storage client_addr;
+        socklen_t client_addrlen = sizeof(client_addr);
+        int connfd = accept(servfd, (struct sockaddr *)&client_addr, &client_addrlen);
+        if (connfd == -1) {
+            perror("accept");
+            continue;
+        }
+
+        puts("New connection");
+
+        struct client_data *cl_data = malloc(sizeof(struct client_data));
+        cl_data->connfd = connfd;
+
+        // player queue producer
+        pthread_t client;
+        pthread_create(&client, NULL, (void *)&handle_connection, cl_data);
+        pthread_detach(client);
+    }
+
+    close(servfd);
     return 0;
 }
 
-void enqueue_new_player(int connfd) {
+int start_server(char *port) {
+    /*
+    * Start a TCP server
+    *
+    * Returns server socket fd on success, and -1 on error
+    *
+    * Also spams errors if any occur into console
+    */
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    struct addrinfo *server_ai;
+    int ai_status = getaddrinfo(NULL, port, &hints, &server_ai);
+    if (ai_status != 0) {
+        freeaddrinfo(server_ai);
+        fprintf(stderr, "server: addrinfo: %s\n", gai_strerror(ai_status));
+        return -1;
+    }
+
+    int sockfd;
+    for ( ; server_ai != NULL; server_ai = server_ai->ai_next) {
+        sockfd = socket(server_ai->ai_family, server_ai->ai_socktype, 0);
+        if (sockfd == -1) {
+            perror("server: socket");
+            continue;
+        }
+
+        if (bind(sockfd, server_ai->ai_addr, server_ai->ai_addrlen) == -1) {
+            perror("server: bind");
+            close(sockfd);
+            continue;
+        }
+
+        break;
+    }
+
+    if (server_ai == NULL) {
+        fprintf(stderr, "server: Failed to bind\n");
+        return -1;
+    }
+
+    freeaddrinfo(server_ai);
+
+    if (listen(sockfd, BACKLOG) == -1) {
+        perror("server: listen");
+        close(sockfd);
+        return -1;
+    }
+
+    return sockfd;
+}
+
+int handle_connection(struct client_data *cl_data) {
     /*
     * Handle client communication during the game
     */
     char queue_msg[] = "QUEUE:1";
-    ssize_t sent = send(connfd, queue_msg, strlen(queue_msg), 0);
+    ssize_t sent = send(cl_data->connfd, queue_msg, strlen(queue_msg), 0);
     if (sent == -1) {
-        perror("enqueue_new_player: send");
-        // pthread_exit
+        perror("send");
+        return EXIT_FAILURE; // TODO: change to pthread_exit
     } else {
         printf("sent %zu/%zu bytes\n", sent, sizeof(queue_msg));
-        struct client_data *cl_data = malloc(sizeof(struct client_data));
-        if (cl_data == NULL) {
-            perror("enqueue_new_player: malloc");
-            return;
-            //pthread_exit
-        }
-        cl_data->connfd = connfd;
         ts_queue_enqueue(player_q, cl_data);
-        printf("enqueue_new_player: Put %d in the queue ", connfd);
+        puts("Put in da q");
         print_queue(player_q);
         pthread_cond_signal(&q_has_match);
-        // pthread_exit
+        return EXIT_SUCCESS;
     }
 }
 
