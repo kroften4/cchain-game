@@ -10,28 +10,11 @@
 
 #include "ts_queue.h"
 #include "cchain_protocol.h"
-#include "server.h"
-
-struct client_data {
-    int connfd;
-};
+#include "matchmaking_server.h"
 
 #define ROOM_SIZE 2
-struct match_data {
-    struct client_data *(players_fd[ROOM_SIZE]);
-};
 
-struct ts_queue *player_q;
-pthread_cond_t q_has_match = PTHREAD_COND_INITIALIZER;
-
-struct ts_queue *matches;
-
-void print_queue(struct ts_queue *q);
-
-void enqueue_new_player(int connfd);
-void *matchmake(void *q_p);
-
-void *play_cchain(void *room_data_p);
+void play_cchain(struct client_data *cl_data[ROOM_SIZE]);
 
 int main(int argc, char **argv) {
     if (argc != 2) {
@@ -41,102 +24,22 @@ int main(int argc, char **argv) {
 
     char *port = argv[1];
 
-
-    player_q = ts_queue_new();
-    matches = ts_queue_new();
-
-    // player queue consumer
-    pthread_t matcher;
-    pthread_create(&matcher, NULL, matchmake, player_q);
-
-    server(port, enqueue_new_player);
+    matchmaking_server(port, play_cchain);
     return 0;
 }
 
-void enqueue_new_player(int connfd) {
-    /*
-    * Handle client communication during the game
-    */
-    char queue_msg[] = "QUEUE:1";
-    ssize_t sent = send(connfd, queue_msg, sizeof(queue_msg), 0);
-    if (sent == -1) {
-        perror("enqueue_new_player: send");
-        // pthread_exit
-    } else {
-        printf("enqueue_new_player: sent %zu/%zu bytes\n", sent, sizeof(queue_msg));
-        struct client_data *cl_data = malloc(sizeof(struct client_data));
-        if (cl_data == NULL) {
-            perror("enqueue_new_player: malloc");
-            return;
-            //pthread_exit
-        }
-        cl_data->connfd = connfd;
-        ts_queue_enqueue(player_q, cl_data);
-        printf("enqueue_new_player: Put %d in the queue ", connfd);
-        print_queue(player_q);
-        pthread_cond_signal(&q_has_match);
-        // pthread_exit
-    }
-}
-
-void print_queue(struct ts_queue *q) {
-    printf("[ ");
-    for (struct ts_queue_node *node = q->head; node != NULL;
-         node = node->next) {
-        struct client_data *data = node->data;
-        printf("%d ", data->connfd);
-    }
-    printf("]\n");
-}
-
-void *matchmake(void *q_p) {
-    struct ts_queue *q = (struct ts_queue *) q_p;
-    while (1) {
-        pthread_mutex_lock(&q->mutex);
-        while (q->size < ROOM_SIZE) {
-            pthread_cond_wait(&q_has_match, &q->mutex);
-        }
-
-        while (q->size >= ROOM_SIZE) {
-            // if enough players in q to create a room, do so
-
-            // create room
-            struct match_data *match_data = malloc(sizeof(struct match_data));
-
-            // fill it up
-            for (int i = 0; i < ROOM_SIZE; i++) {
-                match_data->players_fd[i] = q->head->data;
-                __ts_queue_dequeue_nolock(q);
-            }
-            printf("matchmake: Created a room ");
-            print_queue(q);
-
-            // add to room list
-            __ts_queue_enqueue_nolock(matches, match_data);
-
-            pthread_t game_thread;
-            pthread_create(&game_thread, NULL, play_cchain,
-                           match_data);
-            pthread_detach(game_thread);
-        }
-
-        pthread_mutex_unlock(&q->mutex);
-    }
-}
-
 /*
- * Play the city chain game. `room_data` contains 2 `connfd`s for the 2 players
+ * Play the city chain game.
  * TODO: fix SIGPIPE (sending to closed connection)
  * TODO: make room size variable
  */
-void *play_cchain(void *room_data_p) {
-    struct match_data *room_data = (struct match_data *) room_data_p;
+void play_cchain(struct client_data *cl_data[ROOM_SIZE]) {
     puts("play_cchain: Starting game");
     struct server_msg {
         char *opponent_word;
     };
-    int connfd_1 = room_data->players_fd[0]->connfd;
-    int connfd_2 = room_data->players_fd[1]->connfd;
+    int connfd_1 = cl_data[0]->connfd;
+    int connfd_2 = cl_data[1]->connfd;
 
     char start_msg_1[MAX_MSG_SIZE] = "";
     cchain_msg(start_msg_1, CCHAIN_START, "1");

@@ -8,7 +8,6 @@
 #include "server.h"
 
 int start_server(char *port) {
-    
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
