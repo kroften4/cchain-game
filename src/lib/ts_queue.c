@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "ts_queue.h"
 
-struct ts_queue_node *ts_queue_node_new() {
+struct ts_queue_node *ts_queue_node_new(void) {
     struct ts_queue_node *node = malloc(sizeof(struct ts_queue_node));
     node->data = NULL;
     node->prev = NULL;
@@ -21,7 +21,7 @@ void __ts_queue_node_destructor(struct ts_queue *q,
     free(node);
 }
 
-struct ts_queue *ts_queue_new() {
+struct ts_queue *ts_queue_new(void) {
     struct ts_queue *q = malloc(sizeof(struct ts_queue));
     q->head = NULL;
     q->tail = NULL;

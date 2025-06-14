@@ -18,7 +18,7 @@ struct ts_queue_node {
     struct ts_queue_node *next;
 };
 
-struct ts_queue_node *ts_queue_node_new();
+struct ts_queue_node *ts_queue_node_new(void);
 
 /*
  * Thread safe queue.
@@ -37,7 +37,7 @@ struct ts_queue {
 /*
  * Allocate new ts_queue
  */
-struct ts_queue *ts_queue_new();
+struct ts_queue *ts_queue_new(void);
 
 void __ts_queue_data_destructor_noop(void *dummy);
 
